@@ -55,6 +55,14 @@ def reset_cfg(cfg, args):
     if args.cluster:
         cfg.CLUSTER = args.cluster
 
+    if args.num_clusters:
+        cfg.NUM_CLUSTERS = args.num_clusters
+    
+    if args.num_conststyles:
+        cfg.NUM_CONSTSTYLES = args.num_conststyles
+    
+    if args.reduce:
+        cfg.REDUCE = args.reduce
     #if args.uncertainty:
     cfg.MODEL.UNCERTAINTY = args.uncertainty
 
@@ -76,18 +84,24 @@ def setup_cfg(args):
 def main(args):
     cfg = setup_cfg(args)
     if args.wandb:
-        if cfg.MODEL.BACKBONE.NAME == 'uresnet18':
+        if cfg.MODEL.BACKBONE.NAME in ('uresnet18', 'uresnet50'):
             job_type = 'DSU'
-        elif cfg.MODEL.BACKBONE.NAME == 'cresnet18':
+        elif cfg.MODEL.BACKBONE.NAME in ('curesnet18', 'curesnet50'):
+            job_type = 'CSU'
+        elif cfg.MODEL.BACKBONE.NAME in ('cresnet18', 'cresnet50'):
             job_type = 'ConstStyle3'
             if cfg.CLUSTER == 'ot':
                 job_type += '-OT'
             elif cfg.CLUSTER == 'llh':
                 job_type += '-LogLikelihood'
+            
+            if cfg.NUM_CLUSTERS > 1:
+                job_type += f'-numcluster_{cfg.NUM_CLUSTERS}'
+            
+            if cfg.NUM_CONSTSTYLES:
+                job_type += f'-numconsts_{cfg.NUM_CONSTSTYLES}'
         elif cfg.MODEL.BACKBONE.NAME == 'resnet18_ms_l12':
             job_type = 'MixStyle'
-        elif cfg.MODEL.BACKBONE.NAME == 'curesnet18':
-            job_type = 'CSU'
         elif cfg.TRAINER.NAME == 'RIDG':
             job_type = 'RIDG'
         else:
@@ -207,6 +221,8 @@ if __name__ == '__main__':
     parser.add_argument('--option', default='', type=str, help='additional options')
     parser.add_argument('--update_interval', default=25, type=int, help='update cluster interval')
     parser.add_argument('--cluster', default='ot', type=str, help='cluster choosing method')
-    
+    parser.add_argument('--num_clusters', default = 3, type=int, help = 'number of clusters')
+    parser.add_argument('--num_conststyles', default = 3, type=int, help = 'number of layers applying conststyle')
+    parser.add_argument('--reduce', default = 1, type = int, help = 'reduction factor of data')
     args = parser.parse_args()
     main(args)

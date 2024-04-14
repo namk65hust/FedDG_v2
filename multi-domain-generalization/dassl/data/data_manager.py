@@ -217,9 +217,11 @@ class DatasetWrapper(TorchDataset):
             'domain': item.domain,
             'impath': item.impath
         }
-
-        img0 = read_image(item.impath)
-
+        if item.isFile:
+            img0 = read_image(item.impath)
+        else:
+            img0 = item.impath
+        
         if self.transform is not None:
             if isinstance(self.transform, (list, tuple)):
                 for i, tfm in enumerate(self.transform):

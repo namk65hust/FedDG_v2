@@ -94,8 +94,8 @@ class ConstStyle(nn.Module):
         # bayes_cluster = GridSearchCV(
         #     GaussianMixture(init_params='k-means++'), param_grid=param_grid, scoring=gmm_bic_score
         # )
-
-        bayes_cluster = BayesianGaussianMixture(n_components=3, covariance_type='full')
+        num_cluster = self.cfg.NUM_CLUSTERS
+        bayes_cluster = BayesianGaussianMixture(n_components=num_cluster, covariance_type='full', init_params='k-means++', max_iter=200)
         bayes_cluster.fit(pca_data)
         
         labels = bayes_cluster.predict(pca_data)
@@ -103,6 +103,8 @@ class ConstStyle(nn.Module):
         
         cluster_samples = []
         cluster_samples_idx = []
+        cluster_means = []
+        cluster_covs = []
         for val in unique_labels:
             print(f'Get samples belong to cluster {val}')
             samples = [reshaped_data[i] for i in range(len(labels)) if labels[i] == val]
@@ -111,18 +113,19 @@ class ConstStyle(nn.Module):
             print(f'Cluster {val} has {len(samples)} samples')
             cluster_samples.append(samples)
             cluster_samples_idx.append(samples_idx)
+            
+            cluster_means.append(bayes_cluster.means_[val])
+            cluster_covs.append(bayes_cluster.covariances_[val])
         
-        if self.cfg.CLUSTER == 'llh':
-            log_likelihood_score = []
-            for cluster_idx, cluster_sample_idx in enumerate(cluster_samples_idx):
-                cluster_sample = [pca_data[i] for i in cluster_sample_idx]
-                sample_score = bayes_cluster.score_samples(cluster_sample)
-                mean_score = np.mean(sample_score)
-                print(f'Mean log likelihood of cluster {cluster_idx} is {mean_score}')
-                log_likelihood_score.append(mean_score)
-
-            idx_val = np.argmax(log_likelihood_score)
-            print(f'Layer {idx} chooses cluster {unique_labels[idx_val]} with log likelihood score {log_likelihood_score[idx_val]}')
+        if self.cfg.CLUSTER == 'barycenter':
+            cluster_means = np.stack([bayes_cluster.means_[i] for i in range(len(unique_labels))])
+            cluster_covs = np.stack([bayes_cluster.covariances_[i] for i in range(len(unique_labels))])
+            weights = np.ones(len(unique_labels), dtype=np.float64) / len(unique_labels)
+            
+            total_mean, total_cov = ot.gaussian.bures_wasserstein_barycenter(cluster_means, cluster_covs, weights)
+            self.const_mean = torch.from_numpy(total_mean)
+            self.const_cov = torch.from_numpy(total_cov)
+            print(f'Layer {idx} choose distribution with mean {np.mean(total_mean)} and std {np.mean(total_cov)}')
         elif self.cfg.CLUSTER == 'ot':
             ot_score = []
             for i in range(len(cluster_samples_idx)):
@@ -133,50 +136,69 @@ class ConstStyle(nn.Module):
                         continue
                     else:
                         cluster_sample_y = [pca_data[k] for k in cluster_samples_idx[j]]
-                        pwd = ot.sliced.sliced_wasserstein_distance(cluster_sample_y, cluster_sample_x, seed=self.cfg.SEED, n_projections=64)
-                        print(f'Cost to move from cluster {j} to cluster {i} is {pwd}')
-                        total_cost += pwd
+                        cluster_sample_x = np.array(cluster_sample_x)
+                        cluster_sample_y = np.array(cluster_sample_y)
+                        M = ot.dist(cluster_sample_y, cluster_sample_x)
+                        a, b = np.ones(len(cluster_sample_y)) / len(cluster_sample_y), np.ones(len(cluster_sample_x)) / len(cluster_sample_x) 
+                        cost = ot.emd2(a, b, M)
+                        # pwd = ot.sliced.sliced_wasserstein_distance(cluster_sample_y, cluster_sample_x, seed=self.cfg.SEED, n_projections=128)
+                        print(f'Cost to move from cluster {j} to cluster {i} is {cost}')
+                        total_cost += cost
                 print(f'Total cost of cluster {i}: {total_cost}')
                 ot_score.append(total_cost)
                         
             idx_val = np.argmin(ot_score)
             print(f'Layer {idx} chooses cluster {unique_labels[idx_val]} with optimal transport cost {ot_score[idx_val]}')
+            
+            self.const_mean = torch.from_numpy(bayes_cluster.means_[idx_val])
+            self.const_cov = torch.from_numpy(bayes_cluster.covariances_[idx_val])
             # print(f'Store cluster {unique_labels[idx_val]} samples...')
             # self.cluster_samples = [pca_data[i] for i in cluster_samples_idx[unique_labels[idx_val]]]
 
-        self.const_mean = torch.from_numpy(bayes_cluster.means_[idx_val])
-        self.const_cov = torch.from_numpy(bayes_cluster.covariances_[idx_val])
-
         #plot features
-        # if self.cfg.DATASET.TARGET_DOMAINS == 'p':
+        # if self.cfg.DATASET.TARGET_DOMAINS == 'photo':
         #     classes = ['art', 'cartoon', 'sketch']
-        # elif self.cfg.DATASET.TARGET_DOMAINS == 'a':
+        # elif self.cfg.DATASET.TARGET_DOMAINS == 'art_painting':
         #     classes = ['photo', 'cartoon', 'sketch']
-        # elif self.cfg.DATASET.TARGET_DOMAINS == 'c':
+        # elif self.cfg.DATASET.TARGET_DOMAINS == 'cartoon':
         #     classes = ['photo', 'art', 'sketch']
-        # elif self.cfg.DATASET.TARGET_DOMAINS == 's':
+        # elif self.cfg.DATASET.TARGET_DOMAINS == 'sketch':
         #     classes = ['photo', 'art', 'cartoon']
+        # else:
+        #     print("WRONG_NAME_DOMAIN")
         
-        # tsne = TSNE(n_components=2, random_state=self.cfg.SEED)
-        # plot_data = tsne.fit_transform(reshaped_data)
+        
+        classes = ['c1','c2','c3','c4','c5']
+        tsne = TSNE(n_components=2, random_state=self.cfg.SEED)
+        plot_data = tsne.fit_transform(reshaped_data)
         
         # scatter = plt.scatter(plot_data[:, 0], plot_data[:, 1], c=domain_list)
         # plt.legend(handles=scatter.legend_elements()[0], labels=classes)
-        # save_path = os.path.join(f'{self.cfg.OUTPUT_DIR}', f'features{idx}_epoch{epoch}.png')
+        # save_path = os.path.join(f'{self.cfg.OUTPUT_DIR}', f'conststyle_{self.cfg.NUM_CONSTSTYLES}_features{idx}_epoch{epoch}.png')
         # plt.savefig(save_path, dpi=200)
         # plt.close()
         # plt.cla()
         # plt.clf()
         
         # classes = ['c1', 'c2', 'c3']
-        # scatter = plt.scatter(plot_data[:, 0], plot_data[:, 1], c=labels)
+        scatter = plt.scatter(plot_data[:, 0], plot_data[:, 1], c=labels)
+        plt.legend(handles=scatter.legend_elements()[0], labels=classes)
+        save_path = os.path.join(f'{self.cfg.OUTPUT_DIR}', f'{self.cfg.NUM_CLUSTERS}clusters_{self.cfg.NUM_CONSTSTYLES}styles_layer{idx}_epoch{epoch}.png')
+        plt.savefig(save_path, dpi=200)
+        plt.close()
+        plt.cla()
+        plt.clf()
+        
+        # tsne1 = TSNE(n_components=2, random_state=self.cfg.SEED)
+        # plot_data1 = tsne1.fit_transform(pca_data)
+        
+        # scatter = plt.scatter(plot_data1[:, 0], plot_data1[:, 1], c=labels)
         # plt.legend(handles=scatter.legend_elements()[0], labels=classes)
-        # save_path = os.path.join(f'{self.cfg.OUTPUT_DIR}', f'cluster{idx}_epoch{epoch}.png')
-        # plt.savefig(save_path, dpi=200)
-        # plt.close()
+        # save_path1 = os.path.join(f'{self.cfg.OUTPUT_DIR}', f'aftercluster_{self.cfg.NUM_CONSTSTYLES}conststyle_layer{idx}_epoch{epoch}.png')
+        # plt.savefig(save_path1, dpi=200)
+        # plt.close() 
         # plt.cla()
         # plt.clf()
-        
         # if self.args.wandb:
         #     self.args.tracker.log({
         #         f'Mean_domain_{idx}': torch.mean(self.const_mean).item()
@@ -290,7 +312,6 @@ class BasicBlock(nn.Module):
 
 class Bottleneck(nn.Module):
     expansion = 4
-
     def __init__(self, inplanes, planes, stride=1, downsample=None):
         super().__init__()
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
@@ -343,7 +364,8 @@ class CResNet(Backbone):
         self.inplanes = 64
         super().__init__()
         # backbone network
-        self.num_conststyle = 3
+        self.cfg = cfg
+        self.num_conststyle = self.cfg.NUM_CONSTSTYLES
         self.conststyle = [ConstStyle(cfg) for i in range(self.num_conststyle)]
         self.conv1 = nn.Conv2d(
             3, 64, kernel_size=7, stride=2, padding=3, bias=False
@@ -414,11 +436,13 @@ class CResNet(Backbone):
         x = self.conststyle[1](x, store_feature=store_feature, apply_conststyle=apply_conststyle, is_test=is_test)
         x = self.layer2(x)
         x = self.conststyle[2](x, store_feature=store_feature, apply_conststyle=apply_conststyle, is_test=is_test)
+        if (self.num_conststyle ==4):
+            x = self.layer3(x)
+            x = self.conststyle[3](x, store_feature=store_feature, apply_conststyle=apply_conststyle, is_test=is_test)
         return x
     
     def featuremaps(self, x, store_feature=False, apply_conststyle=False, is_test=False):
         x = self.conv1(x)
-        # x = self.conststyle[0](x, store_feature=store_feature, apply_conststyle=apply_conststyle)
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)
@@ -428,6 +452,8 @@ class CResNet(Backbone):
         x = self.layer2(x)
         x = self.conststyle[2](x, store_feature=store_feature, apply_conststyle=apply_conststyle, is_test=is_test)
         x = self.layer3(x)
+        if (self.num_conststyle ==4):
+            x = self.conststyle[3](x, store_feature=store_feature, apply_conststyle=apply_conststyle, is_test=is_test)
         return self.layer4(x)
 
     def forward(self, x, store_feature=False, apply_conststyle=False, is_test=False):
@@ -465,4 +491,11 @@ def cresnet18(pretrained=True, cfg=None, **kwargs):
 
     if pretrained:
         init_pretrained_weights(model, model_urls['resnet18'])
+    return model
+
+@BACKBONE_REGISTRY.register()
+def cresnet50(pretrained=True, cfg=None, **kwargs):
+    model = CResNet(block=Bottleneck, layers=[3, 4, 6, 3], cfg=cfg)
+    if pretrained:
+        init_pretrained_weights(model, model_urls['resnet50'])
     return model

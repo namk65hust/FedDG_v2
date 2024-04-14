@@ -3,9 +3,9 @@ INPUT:
   TRANSFORMS: ['random_flip', 'random_translation', 'normalize']
 
 DATASET:
-  NAME: 'OfficeHomeDG'
+  NAME: 'DomainNetDG'
 
 MODEL:
   BACKBONE:
-    NAME: 'cresnet50'
+    NAME: 'resnet50'
     PRETRAINED: True

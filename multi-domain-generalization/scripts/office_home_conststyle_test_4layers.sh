@@ -19,23 +19,24 @@ method=conststyle
 --dataset-config-file configs/datasets/dg/${DATASET}_cs.yaml \
 --config-file configs/trainers/dg/vanilla/${DATASET}.yaml \
 --output-dir output/dg/${DATASET}/${method}/${D1} \
---num_clusters 4 \
+--num_clusters 3 \
+--num_conststyles 4 \
 --update_interval 15 \
 --resume false)
 
-(CUDA_VISIBLE_DEVICES=1 python tools/train.py \
---root ${DATA} \
---uncertainty 0.5 \
---trainer ConstStyleTrainer \
---source-domains ${D1} ${D3} ${D4} \
---target-domains ${D2} \
---seed ${SEED} \
---dataset-config-file configs/datasets/dg/${DATASET}_cs.yaml \
---config-file configs/trainers/dg/vanilla/${DATASET}.yaml \
---output-dir output/dg/${DATASET}/${method}/${D2} \
---num_clusters 4 \
---update_interval 15 \
---resume false)
+# (CUDA_VISIBLE_DEVICES=1 python tools/train.py \
+# --root ${DATA} \
+# --uncertainty 0.5 \
+# --trainer ConstStyleTrainer \
+# --source-domains ${D1} ${D3} ${D4} \
+# --target-domains ${D2} \
+# --seed ${SEED} \
+# --dataset-config-file configs/datasets/dg/${DATASET}_cs.yaml \
+# --config-file configs/trainers/dg/vanilla/${DATASET}.yaml \
+# --output-dir output/dg/${DATASET}/${method}/${D2} \
+# --num_clusters 3 \
+# --update_interval 15 \
+# --resume false)
 
 # (CUDA_VISIBLE_DEVICES=1 python tools/train.py \
 # --root ${DATA} \
@@ -47,7 +48,7 @@ method=conststyle
 # --dataset-config-file configs/datasets/dg/${DATASET}_cs.yaml \
 # --config-file configs/trainers/dg/vanilla/${DATASET}.yaml \
 # --output-dir output/dg/${DATASET}/${method}/${D3} \
-# --num_clusters 4 \
+# --num_clusters 3 \
 # --update_interval 15 \
 # --resume false)
 
@@ -61,7 +62,7 @@ method=conststyle
 # --dataset-config-file configs/datasets/dg/${DATASET}_cs.yaml \
 # --config-file configs/trainers/dg/vanilla/${DATASET}.yaml \
 # --output-dir output/dg/${DATASET}/${method}/${D4} \
-# --num_clusters 4 \
+# --num_clusters 3 \
 # --update_interval 15 \
 # --resume false)
 

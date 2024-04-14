@@ -6,7 +6,46 @@ import gdown
 
 from dassl.utils import check_isfile
 
+class MNISTDatum:
+    """Data instance which defines the basic attributes.
 
+    Args:
+        impath (str): images.
+        label (int): class label.
+        domain (int): domain label.
+        classname (str): class name.
+    """
+
+    def __init__(self, impath='', label=0, domain=-1, classname=''):
+        # assert isinstance(label, int)
+        # assert isinstance(domain, int)
+        # assert isinstance(classname, str)
+
+        self._impath = impath
+        self._label = label
+        self._domain = domain
+        self._classname = classname
+        self._isFile = False
+        
+    @property
+    def impath(self):
+        return self._impath
+
+    @property
+    def label(self):
+        return self._label
+
+    @property
+    def domain(self):
+        return self._domain
+
+    @property
+    def classname(self):
+        return self._classname
+    
+    @property
+    def isFile(self):
+        return self._isFile
 class Datum:
     """Data instance which defines the basic attributes.
 
@@ -28,7 +67,8 @@ class Datum:
         self._label = label
         self._domain = domain
         self._classname = classname
-
+        self._isFile = True
+        
     @property
     def impath(self):
         return self._impath
@@ -45,6 +85,9 @@ class Datum:
     def classname(self):
         return self._classname
 
+    @property
+    def isFile(self):
+        return self._isFile
 
 class DatasetBase:
     """A unified dataset class for

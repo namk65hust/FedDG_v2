@@ -1,5 +1,5 @@
 #!/bin/bash
-DATA=./DATA
+DATA=./explore/styled_images/microAST_cartoon
 DATASET=pacs
 D1=art_painting
 D2=cartoon
@@ -8,11 +8,11 @@ D4=sketch
 SEED=42
 method=baseline
 
-# (CUDA_VISIBLE_DEVICES=1 python tools/train.py \
+# (CUDA_VISIBLE_DEVICES=0 python tools/train.py \
 # --root ${DATA} \
 # --trainer Vanilla \
 # --uncertainty 0.5 \
-# --source-domains ${D2} ${D3} ${D4} \
+# --source-domains ${D3} \
 # --target-domains ${D1} \
 # --seed ${SEED} \
 # --dataset-config-file configs/datasets/dg/${DATASET}.yaml \
@@ -32,19 +32,19 @@ method=baseline
 # --output-dir output/dg/${DATASET}/${method}/${D2} \
 # --resume false)
 
-(CUDA_VISIBLE_DEVICES=1 python tools/train.py \
---root ${DATA} \
---trainer Vanilla \
---uncertainty 0.5 \
---source-domains ${D1} ${D2} ${D4} \
---target-domains ${D3} \
---seed ${SEED} \
---dataset-config-file configs/datasets/dg/${DATASET}.yaml \
---config-file configs/trainers/dg/vanilla/${DATASET}.yaml \
---output-dir output/dg/${DATASET}/${method}/${D3} \
---resume false)
+# (CUDA_VISIBLE_DEVICES=1 python tools/train.py \
+# --root ${DATA} \
+# --trainer Vanilla \
+# --uncertainty 0.5 \
+# --source-domains ${D1} ${D2} ${D4} \
+# --target-domains ${D3} \
+# --seed ${SEED} \
+# --dataset-config-file configs/datasets/dg/${DATASET}.yaml \
+# --config-file configs/trainers/dg/vanilla/${DATASET}.yaml \
+# --output-dir output/dg/${DATASET}/${method}/${D3} \
+# --resume false)
 
-(CUDA_VISIBLE_DEVICES=1 python tools/train.py \
+(CUDA_VISIBLE_DEVICES=0 python tools/train.py \
 --root ${DATA} \
 --trainer Vanilla \
 --uncertainty 0.5 \

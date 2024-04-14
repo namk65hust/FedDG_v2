@@ -3,6 +3,7 @@ import os.path as osp
 import datetime
 from collections import OrderedDict
 import torch
+import numpy as np
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 
@@ -14,7 +15,7 @@ from dassl.utils import (
 )
 from dassl.modeling import build_head, build_backbone
 from dassl.evaluation import build_evaluator
-
+import faiss
 
 class SimpleNet(nn.Module):
     """A simple neural network composed of a CNN backbone
@@ -446,7 +447,6 @@ class SimpleTrainer(TrainerBase):
         """A generic testing pipeline."""
         self.set_model_mode('eval')
         self.evaluator.reset()
-
         split = self.cfg.TEST.SPLIT
         print('Do evaluation on {} set'.format(split))
         data_loader = self.val_loader if split == 'val' else self.test_loader
@@ -454,6 +454,8 @@ class SimpleTrainer(TrainerBase):
 
         for batch_idx, batch in enumerate(data_loader):
             input, label = self.parse_batch_test(batch)
+            softmax = nn.Softmax()
+            feats = self.model.backbone(input)
             output = self.model_inference(input)
             self.evaluator.process(output, label)
 
